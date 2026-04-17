@@ -1,0 +1,19 @@
+{
+  "name": "arca-plugins",
+  "owner": {
+    "name": "Unbanked",
+    "url": "https://runarca.xyz"
+  },
+  "metadata": {
+    "description": "Arca — AI ops platform for SMBs. Official plugin marketplace.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "arca",
+      "source": "./plugins/arca",
+      "description": "Arca ops platform — skills, hooks, MCP servers, and agent profiles for running multi-agent operations",
+      "version": "1.0.0-alpha"
+    }
+  ]
+}

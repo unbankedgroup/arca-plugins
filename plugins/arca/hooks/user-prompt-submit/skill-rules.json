@@ -1,0 +1,98 @@
+[
+  {
+    "skill": "arca-ops",
+    "any_keyword": [
+      "assign task", "create ticket", "ops board", "delegate to", "route to forge",
+      "board task", "orchestrate", "triage", "create a task", "put it on the board",
+      "assign to", "ai_review", "review the work", "approve the task", "move to done",
+      "check the board", "what's on the board", "pending tasks", "task status",
+      "ops_board", "ops-board", "ws=arca", "task assigned", "task comment",
+      "in_progress", "human_review", "proof of work", "command center",
+      "@cognis", "@forge", "@atlas", "@mara", "@donna", "@studio", "@nexus",
+      "t177", "cmd177", "review this", "bounce it back", "move the ticket",
+      "give mara", "give forge", "give atlas", "write the task", "create the card"
+    ],
+    "description": "Arca orchestrator — task creation, delegation, review, board management"
+  },
+  {
+    "skill": "arca-worker",
+    "any_keyword": [
+      "pick up the task", "execute the task", "work on this task", "assigned to me",
+      "update progress", "submit proof", "mark done", "task complete", "working on",
+      "take this task", "do this task"
+    ],
+    "description": "Arca worker — execute assigned tasks, update progress, submit proof of work"
+  },
+  {
+    "skill": "prospect-profile",
+    "any_keyword": [
+      "prospect", "profile", "lead research", "company research", "icp research",
+      "who is", "background on", "outreach to", "research this person", "research this company"
+    ],
+    "description": "Build detailed client/prospect profiles with outreach drafts"
+  },
+  {
+    "skill": "seo-audit",
+    "any_keyword": [
+      "seo audit", "technical seo", "page audit", "meta tags", "sitemap",
+      "core web vitals", "ranking", "serp", "why am i not ranking"
+    ],
+    "description": "Technical and on-page SEO analysis"
+  },
+  {
+    "skill": "keyword-research",
+    "any_keyword": [
+      "keyword research", "keywords for", "what keywords", "target keywords",
+      "search intent", "keyword tool"
+    ],
+    "description": "Keyword research and search intent analysis"
+  },
+  {
+    "skill": "content-strategy",
+    "any_keyword": [
+      "content strategy", "content plan", "content calendar", "topic cluster",
+      "content for seo", "blog strategy", "what to write about"
+    ],
+    "description": "Content strategy, planning, and topic clusters"
+  },
+  {
+    "skill": "copywriting",
+    "any_keyword": [
+      "write copy", "ad copy", "landing page copy", "headline", "cta copy",
+      "email copy", "sales copy", "write the ad"
+    ],
+    "description": "Short-form marketing copy — headlines, CTAs, ads, email"
+  },
+  {
+    "skill": "last30days",
+    "any_keyword": [
+      "last 30 days", "recent trends", "what's happening with", "latest on",
+      "research reddit", "research twitter", "hn threads", "trend research",
+      "what are people saying about", "reddit threads on"
+    ],
+    "description": "Deep research on recent trends from Reddit, X, HN, YouTube"
+  },
+  {
+    "skill": "find-skills",
+    "any_keyword": [
+      "what skills", "available skills", "list skills", "find skill",
+      "do you have a skill for", "is there a skill"
+    ],
+    "description": "Discover available skills in ~/.claude/skills/"
+  },
+  {
+    "skill": "commit",
+    "any_keyword": [
+      "commit this", "make a commit", "git commit", "save changes", "commit the changes"
+    ],
+    "description": "Create a git commit with proper message"
+  },
+  {
+    "skill": "usage",
+    "any_keyword": [
+      "/usage", "check usage", "usage check", "how much budget", "budget left",
+      "api usage", "claude usage", "ollama usage"
+    ],
+    "description": "Budget check — runs usage-check.py --short, replies with 2-line format to Telegram"
+  }
+]
