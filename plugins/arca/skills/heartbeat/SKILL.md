@@ -44,9 +44,10 @@ Gather all external state before processing internal state. **Run Steps 3-6 in p
 ### Step 3 -- Email (requires: email)
 
 Poll the client's inbox since `last_email_check_ts`. For each real email that needs a reply:
-1. Draft a reply in the client's voice
-2. Save draft to a pending file
-3. Queue for surfacing in Phase 4
+1. **De-dup check first.** Before drafting or surfacing anything as a YES-gate, search the sent folder (last 72h) for a matching recipient/subject. If already sent or handled, do not surface it. False YES-gates waste the client's attention and erode trust.
+2. Draft a reply in the client's voice
+3. Save draft to a pending file
+4. Queue for surfacing in Phase 4
 
 Never send an email directly. Draft only. Every draft goes to the client for explicit approval before sending. No exceptions, no automation, no "obvious" replies. The client approves or edits, then you send. Never surface an email without a draft reply attached.
 
@@ -89,10 +90,16 @@ Check for incoming messages from other agents via claude-peers. Respond immediat
 
 ### Step 9 -- Scheduled tasks and promises
 
-Read your scheduled tasks tracker (if one exists). For each task:
+Read your scheduled tasks tracker (if one exists).
+
+**Proactive miss detection:** Read `next_fire_times` from heartbeat-state.json (written last cycle). For each entry where the expected fire time is in the past and the task is still pending, flag it immediately as missed -- do not wait until you stumble on it later. This catches idle-gating misses at cycle start.
+
+For each task:
 - If trigger time has passed and status is pending: execute it now
 - If >60 min late: execute with "catch-up" prefix, log the delay
 - If the task created a promise to the client ("I will have X ready by 3pm"): verify it shipped
+
+**Promise ledger:** After processing tasks, review all pending promises by age. For anything aging past 72 hours, assign an action: KEEP (with reason), NUDGE (message client), ESCALATE (ops board), or DEFER (with reason). No promise ages silently past 72h without a decision logged.
 
 Never silently skip an overdue task. Run it or explicitly defer it with a reason logged.
 
@@ -128,9 +135,15 @@ If you find something: draft it or delegate it. Log what you did or assigned. Du
 
 These fire once per day at specific times. Check heartbeat-state.json flags to avoid duplicates.
 
-### Step 12 -- Morning brief (active hours start, once daily)
+### Step 12 -- Briefs
 
-Only fire if `morning_brief_sent_today` is false and current time is within 30 min of active hours start.
+client.yaml can define multiple briefs under `briefs[]`. Each brief has its own recipient, channel, format, and time window. This supports deployments where the agent serves multiple stakeholders (e.g., a client brief + an architecture brief for the founder).
+
+Default: one morning brief + one evening wrap if `briefs[]` is not defined.
+
+**Morning brief** -- fires once daily at active hours start.
+
+Only fire if `morning_brief_sent_today` is false and current time is within the configured send window (default: first 30 min of active hours).
 
 Assemble:
 - Overnight activity summary (what got done while client slept)
@@ -139,13 +152,15 @@ Assemble:
 - Any pending drafts (emails, follow-ups)
 - Effort estimate: "X items to approve (~Y min)"
 
+**YES-gate de-dup:** Before including any item as a YES-gate, check sent folder (last 72h) for matching recipient/subject. If already handled, do not include. False YES-gates waste attention and erode trust.
+
 Send via the client's preferred channel (from client.yaml `communication`). Update heartbeat-state.json.
 
 Format rules: under 200 words, tight bullets, action items first. End with: "Anything else on your mind today?"
 
 ### Step 13 -- Evening wrap (before quiet hours, once daily)
 
-Only fire if `evening_wrap_sent_today` is false and current time is within 60 min of quiet hours start.
+Only fire if `evening_wrap_sent_today` is false and current time is within the configured send window (default: last 60 min before quiet hours).
 
 Assemble:
 - What got done today
@@ -163,7 +178,11 @@ Update state files so the next cycle (or a fresh session after a crash) has full
 
 ### Step 14 -- Daily notes
 
-Append a pulse entry to today's daily notes file (`daily/YYYY-MM-DD.md`). Include: cycle time, steps run, any actions taken, any items surfaced to client. One concise paragraph per cycle, not a wall of text.
+Two layers of logging:
+
+**Per-event entries (throughout the cycle):** As you execute each phase, append a timestamped one-liner to today's daily notes for every meaningful event: email drafted, task fired, decision made, promise created, item surfaced to client. These entries happen inline during the cycle, not batched at the end. This produces a rich, retro-friendly log.
+
+**Cycle summary (end of cycle):** Append a pulse entry to today's daily notes file (`daily/YYYY-MM-DD.md`). Include: cycle time, steps run, count of actions taken, any flags. One concise paragraph, not a wall of text. This is the index line -- the per-event entries above are the detail.
 
 ### Step 15 -- Handoff rewrite
 
@@ -176,7 +195,9 @@ Rewrite `handoff.md` with current state. This is your crash-recovery file. A fre
 
 ### Step 16 -- State write
 
-Write `heartbeat-state.json` with:
+Write state files in this order. The sequence matters -- if the cycle crashes mid-write, earlier files are still fresh.
+
+**Primary: heartbeat-state.json**
 - `last_heartbeat`: current timestamp
 - `last_cycle_id`: YYYY-MM-DD-HHMM
 - `last_heartbeat_note`: one-line summary of this cycle
@@ -185,11 +206,20 @@ Write `heartbeat-state.json` with:
 - `evening_wrap_sent_today`: boolean
 - `quiet_hours`: boolean
 - `next_actions`: array of pending items
+- `next_fire_times`: object mapping pending task IDs to their next trigger timestamps (Step 9 reads this next cycle for proactive miss detection)
 - `last_email_check_ts`: timestamp (if email enabled)
 - `last_board_check_ts`: timestamp
 - `last_calendar_check_ts`: timestamp (if calendar enabled)
 
-Write this file last. It is the proof that the cycle completed. If this file is missing or stale, the next cycle's Step 0 knows something broke.
+**External monitoring files (if configured in client.yaml under `monitoring`):**
+If an external monitoring agent (e.g. Ghost) watches your heartbeat, write additional files it can read. Common pattern:
+1. Liveness file -- 3 lines: `last_write_utc`, `cycle_id`, `steps_missing`
+2. Snapshot file -- human-readable markdown summary of current state (the monitor reads this without parsing JSON)
+3. Write these BEFORE heartbeat-state.json so the monitor sees freshness even if the JSON write fails
+
+Configure paths and format in client.yaml under `monitoring.liveness_path` and `monitoring.snapshot_path`. If not configured, skip -- heartbeat-state.json alone is sufficient.
+
+heartbeat-state.json is written last. It is the proof that the cycle completed. If this file is missing or stale, the next cycle's Step 0 knows something broke.
 
 ---
 
