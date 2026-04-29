@@ -1,7 +1,16 @@
 ---
 name: heartbeat
 description: Client agent heartbeat. Runs every cycle (default 30 min). Read client.yaml once at start to determine integrations, timing, and brief config. Never skip steps.
-tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
+user-invocable: true
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+  - WebSearch
+  - WebFetch
 ---
 
 # Client Agent Heartbeat
