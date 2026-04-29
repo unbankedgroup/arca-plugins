@@ -10,6 +10,8 @@ Your operating loop. Every cycle, act like a proactive ops person managing your 
 
 Read `client.yaml` once at cycle start. Extract integration flags, timezone, brief windows, and quiet hours into working context. Do not re-read client.yaml in later steps.
 
+**All time fields in client.yaml are CLIENT-LOCAL, not server time.** Convert using the `timezone` field before comparing against system clock. Deploying a UTC server with a US client without conversion will fire briefs 4-5 hours early.
+
 Steps gated on a disabled integration do not exist for that cycle -- skip instantly with no reasoning.
 
 ## Optimization rules
@@ -54,14 +56,14 @@ For each enabled integration, make one lightweight probe call (e.g. list 0 items
 ### Step 4 -- Email (requires: email)
 
 Poll inbox since `last_email_check_ts`. For each real email needing a reply:
-1. **De-dup first.** Search sent folder (last 72h) for matching recipient/subject. If already handled, skip.
+1. **De-dup first.** Search sent folder (last 72h) across ALL configured aliases for matching recipient/subject. If the client uses multiple email aliases (e.g. personal + business + team), configure them in `client.yaml` under `email.aliases[]`. The de-dup must search every alias's sent folder -- otherwise the agent nudges the client for things already replied to from a different alias.
 2. Draft a reply in the client's voice
 3. Save draft to a pending file
 4. Queue for surfacing in Phase 4
 
 Never send an email directly. Draft only. Every draft needs explicit client approval before sending. No exceptions.
 
-If any email sparks a content idea or process improvement, append to `ideas.jsonl`.
+If any email sparks a content idea or process improvement, append to the ideas log (default: `ideas.jsonl` in the agent directory, override via `client.yaml` `ideas_path`).
 
 ### Step 5 -- Calendar (requires: calendar)
 
@@ -106,6 +108,8 @@ For each task:
 - Trigger time passed + pending: execute now
 - >60 min late: execute with "catch-up" prefix, log delay
 - Created a promise to client: verify it shipped
+
+**Chat promise scanner:** Scan your recent outbound messages (Telegram, email, ops board comments) for commitments: "I will," "I'll have," "by [time]," "ready by," "expect it by." For each commitment found that does not already have a tracked task, create one. Promises made in chat are invisible to the promise ledger unless they are captured here.
 
 **Promise ledger:** Review all pending promises by age. For anything past 72 hours, assign an action: KEEP (with reason), NUDGE (message client), ESCALATE (ops board), or DEFER (with reason). No promise ages silently past 72h.
 
