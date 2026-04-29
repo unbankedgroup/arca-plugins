@@ -25,6 +25,7 @@ Steps gated on a disabled integration do not exist for that cycle -- skip instan
 
 ## Optimization rules
 
+- **NEVER call ToolSearch inside a heartbeat cycle.** All tool schemas must be pre-loaded at session boot (see standing-orders.md). ToolSearch mid-cycle causes stalls. If a tool is not loaded, skip the step that needs it and log the error.
 - **Parallelize independent steps.** Phases mark which steps can batch.
 - **Diff, don't re-scan.** heartbeat-state.json tracks per-check timestamps. Only process items newer than the last timestamp. No new items = one-line result.
 - **Zero-cost integration skip.** `enabled: false` = step does not exist.
@@ -40,13 +41,15 @@ Run `TZ=<timezone from client.yaml> date`. Determine if quiet hours apply (from 
 
 ### Step 1 -- Crash recovery and date rollover
 
-Read `heartbeat-state.json`.
+Read `heartbeat-state.json`. **First run:** If the file does not exist, create it with empty defaults (`last_heartbeat: null`, `steps_executed: []`, all `*_sent_today: false`, `quiet_hours: false`) and skip crash recovery.
 
-**Date rollover:** If the date in `last_cycle_id` (YYYY-MM-DD) differs from today, reset all daily flags to false: `morning_brief_sent_today`, `evening_wrap_sent_today`, and any per-brief `{id}_sent_today`.
+**Date rollover:** If the date in `last_cycle_id` (YYYY-MM-DD) differs from today, reset all `*_sent_today` flags to false.
 
 **Crash recovery:** Check `steps_executed` from the last cycle. If incomplete, log which steps were missed and check for half-finished state (pending files without notifications, delegations without responses).
 
-**Integrity check:** Compare last cycle's `steps_executed` against expected steps for that time of day. If any step is missing without a valid reason (disabled integration, quiet hours), log `INTEGRITY_FAIL: steps [X, Y] missing from last cycle`.
+**Integrity check:** Compare last cycle's `steps_executed` against the full step list (0-18), excluding steps gated on disabled integrations (4, 5, 6) and quiet-hours-suppressed steps. If any step is missing without a valid reason, log `INTEGRITY_FAIL: steps [X, Y] missing from last cycle`.
+
+**next_fire_times guard:** Read `next_fire_times` from heartbeat-state.json. If the key is missing or empty, skip proactive miss detection in Step 10 -- do not error.
 
 ### Step 2 -- Gap detection
 
@@ -72,7 +75,7 @@ Poll inbox since `last_email_check_ts`. For each real email needing a reply:
 
 Never send an email directly. Draft only. Every draft needs explicit client approval before sending. No exceptions.
 
-If any email sparks a content idea or process improvement, append to the ideas log (default: `ideas.jsonl` in the agent directory, override via `client.yaml` `ideas_path`).
+If any email sparks a content idea or process improvement, append a timestamped `IDEA:` entry to daily notes.
 
 ### Step 5 -- Calendar (requires: calendar)
 
@@ -111,16 +114,20 @@ Check for incoming messages from other agents via claude-peers. Respond immediat
 
 ### Step 10 -- Scheduled tasks and promises
 
-**Proactive miss detection:** Read `next_fire_times` from heartbeat-state.json (written last cycle). For each entry where fire time is past and task is still pending, flag as missed immediately.
+**Proactive miss detection:** Read `next_fire_times` from heartbeat-state.json (written last cycle). If missing or empty, skip this sub-step. For each entry where fire time is past and task is still pending, flag as missed immediately.
+
+Tasks on the ops board use title prefixes for type: `[SCHED]` for scheduled tasks, `[PROMISE]` for client promises. Filter by prefix when scanning.
 
 For each task:
 - Trigger time passed + pending: execute now
 - >60 min late: execute with "catch-up" prefix, log delay
 - Created a promise to client: verify it shipped
 
-**Chat promise scanner:** Scan your recent outbound messages (Telegram, email, ops board comments) for commitments: "I will," "I'll have," "by [time]," "ready by," "expect it by." For each commitment found that does not already have a tracked task, create one. Promises made in chat are invisible to the promise ledger unless they are captured here.
+**Chat promise scanner (v2):** Scan your recent outbound messages (Telegram, email, ops board comments) for commitments: "I will," "I'll have," "by [time]," "ready by," "expect it by." For each commitment found that does not already have a tracked task, create one. Promises made in chat are invisible to the promise ledger unless they are captured here.
 
-**Promise ledger:** Review all pending promises by age. For anything past 72 hours, assign an action: KEEP (with reason), NUDGE (message client), ESCALATE (ops board), or DEFER (with reason). No promise ages silently past 72h.
+**Promise ledger (v2):** Review all pending `[PROMISE]` tasks by age. For anything past 72 hours, assign an action: KEEP (with reason), NUDGE (message client), ESCALATE (ops board), or DEFER (with reason). No promise ages silently past 72h.
+
+*v2 features require capture hooks and board tags[] -- skip gracefully until infrastructure is in place.*
 
 ---
 
@@ -154,9 +161,10 @@ Check heartbeat-state.json flags to avoid duplicates.
 client.yaml can define multiple briefs under `briefs[]`. Each brief has: `id`, `recipient`, `channel`, `send_window_start`, `send_window_end`, `catch_up_until`, and `format`. Default if `briefs[]` not defined: morning brief 09:00-09:30, evening wrap = last 60 min before quiet hours.
 
 **For each brief in `briefs[]`:**
-- If current time is in `[send_window_start, send_window_end]` and `{id}_sent_today` is false: send
+- If current time is in `[send_window_start, send_window_end]` and `{id}_sent_today` is false in heartbeat-state.json: send
 - If current time is in `[send_window_end, catch_up_until]` and `{id}_sent_today` is false and draft exists: catch-up send with delay note
-- Otherwise: skip
+- If current time is past `catch_up_until` and `{id}_sent_today` is false: set `{id}_sent_today` to true (brief is permanently missed for today, stop re-logging). Show "MISSED (past catch-up window)" in output table.
+- Otherwise: skip. Show scheduled time in the output table, not just "skipped."
 
 **Morning brief** assembles:
 - Overnight activity summary
@@ -169,6 +177,8 @@ client.yaml can define multiple briefs under `briefs[]`. Each brief has: `id`, `
 Under 200 words, tight bullets, action items first.
 
 ### Step 14 -- Evening wrap
+
+Step 13 handles timing and gating for all briefs. Step 14 provides the content format for the evening wrap specifically. Only assemble content here if Step 13 determined the evening brief should fire.
 
 - What got done today
 - Overnight queue (including anything from Step 12)
@@ -210,17 +220,20 @@ Write in this order. If the cycle crashes mid-write, earlier files are still fre
 1. Liveness file: `last_write_utc`, `cycle_id`, `steps_missing`
 2. Snapshot file: human-readable markdown of current state
 
+**Board-down cache rule:** If the ops board was unreachable this cycle (Step 3 health probe failed), preserve the previous cycle's `next_fire_times` instead of overwriting with empty. Stale cache beats no cache.
+
 **Then heartbeat-state.json (written last -- proof the cycle completed):**
 - `last_heartbeat`: current timestamp
 - `last_cycle_id`: YYYY-MM-DD-HHMM
 - `last_heartbeat_note`: one-line summary
-- `steps_executed`: array of step numbers run
-- `morning_brief_sent_today`: boolean (+ date)
-- `evening_wrap_sent_today`: boolean (+ date)
+- `steps_executed`: array of step numbers run (0-18, matching skill step numbers)
+- `{id}_sent_today`: boolean per brief, keyed by the `id` field in client.yaml `briefs[]` (e.g. brief with `id: morning` uses `morning_sent_today`). Date-rollover in Step 1 resets all `*_sent_today` keys.
 - `quiet_hours`: boolean
 - `next_actions`: array of pending items
-- `next_fire_times`: pending task IDs mapped to trigger timestamps
+- `next_fire_times`: pending task IDs mapped to trigger timestamps (preserved from prior cycle if board was down)
 - `last_email_check_ts`, `last_board_check_ts`, `last_calendar_check_ts`: timestamps
+
+**Close the trigger:** If this cycle was triggered by an ops board command (heartbeat cron), respond to the command with a one-line summary and mark the run complete using the complete-run URL from the trigger message. This is the last action of the cycle.
 
 ---
 

@@ -17,7 +17,7 @@ Read your config file once at cycle start:
 - **Coordinators**: `principal.yaml` (has `team:` and `routing:` sections)
 - **Workers**: any yaml without `team:` section
 
-The presence of a `team:` key determines coordinator vs worker behavior. Workers skip Step 4 (worker health).
+The presence of a `team:` key determines coordinator vs worker behavior. Workers skip Step 5 (worker health).
 
 ## Optimization rules
 
@@ -31,9 +31,9 @@ The presence of a `team:` key determines coordinator vs worker behavior. Workers
 
 ### Step 0 -- Time and quiet hours
 
-Run `TZ=<timezone> date`. Check quiet hours from config (default 10pm-9am). Set QUIET_HOURS flag. During quiet hours, skip Step 5 (report-up) unless there is an incident.
+Run `TZ=<timezone> date`. Check quiet hours from config (default 10pm-9am). Set QUIET_HOURS flag. During quiet hours, skip Step 6 (report-up) unless there is an incident.
 
-### Step 1 -- Crash recovery and state read
+### Step 1 -- Crash recovery, integrity, and gap detection
 
 Read `heartbeat-state.json`. **First run:** If the file does not exist, create it with empty defaults and skip crash recovery.
 
@@ -41,17 +41,28 @@ Read `heartbeat-state.json`. **First run:** If the file does not exist, create i
 
 **Crash recovery:** Check `steps_executed` from last cycle. If incomplete, log which steps were missed.
 
+**Integrity check:** Compare last cycle's `steps_executed` against the full step list (0-9, excluding Step 5 for workers). If any step is missing without a valid reason, log `INTEGRITY_FAIL: steps [X, Y] missing from last cycle`.
+
+**Gap detection:** Compare `last_heartbeat` to now. If the gap exceeds 1.5x cadence, log "GAP DETECTED: Xh Ym since last heartbeat" to daily notes.
+
 ---
 
-## Phase 2: WORK (parallel -- run Steps 2-4 together)
+## Phase 2: WORK (parallel -- run Steps 2-5 together)
 
-### Step 2 -- Board sweep
+### Step 2 -- Health probe
 
-Pull all tasks from the ops board relevant to this agent:
+Make one lightweight call to each dependency before using it:
+- **Ops board:** `ops_get_tasks` (any status). If it fails, log `BOARD_DOWN` and skip Step 3's board operations.
+- **Claude-peers:** `list_peers`. If it fails, log `PEERS_DOWN` and skip Steps 4-5.
+
+### Step 3 -- Board sweep
+
+Pull all tasks from the ops board relevant to this agent.
 
 **For coordinators:**
 - Pending commands tagged to you: execute and respond
 - Tasks in `ai_review` owned by your workers: review quality, approve or send back
+- Tasks `assigned` to workers but unrouted: apply routing table from config (`routing:` section) to assign to the correct worker
 - Tasks `assigned` to your workers: check age, nudge if stale (>2h with no progress update)
 - Delegated tasks awaiting completion: check status
 
@@ -62,22 +73,25 @@ Pull all tasks from the ops board relevant to this agent:
 
 Nothing sits unhandled for more than one cycle.
 
-### Step 3 -- Peer messages
+### Step 4 -- Peer messages
 
 Check for incoming messages from other agents via claude-peers. Respond immediately.
 
-### Step 4 -- Worker health (coordinators only, skip for workers)
+### Step 5 -- Worker health (coordinators only, skip for workers)
 
 For each worker in the `team:` config:
-- Check if their peer is online (list_peers)
-- If a worker has an `in_progress` task but hasn't updated in >2 hours, send a nudge
-- If a worker is offline and has assigned tasks, log `WORKER_DOWN: {name}` and escalate to principal
+1. Check if their peer is online via `list_peers`
+2. Read their `heartbeat-state.json` -- check `last_heartbeat` timestamp. If >2x their cadence, flag `WORKER_STALE: {name}, last beat {time}`
+3. If a worker has an `in_progress` task but their `last_heartbeat` is >2 hours old, send a nudge via claude-peers
+4. If a worker is offline and has assigned tasks, log `WORKER_DOWN: {name}` and escalate to principal
+
+Peer presence alone is not enough -- a worker can be online but stuck in a broken loop. Always check their state file.
 
 ---
 
 ## Phase 3: MAINTAIN (sequential)
 
-### Step 5 -- Report up
+### Step 6 -- Report up
 
 Message your principal with a one-line status update. Only if something changed since last cycle:
 - Tasks completed or moved
@@ -91,9 +105,15 @@ If nothing changed, skip this step. No noise.
 
 **Format:** One message via claude-peers to your principal's peer ID. Keep under 50 words.
 
-### Step 6 -- Daily notes and handoff
+### Step 7 -- Self-critique
 
-**Daily notes:** Append a timestamped one-liner to `daily/YYYY-MM-DD.md` for each meaningful event this cycle.
+If this cycle took any action (task routed, worker nudged, command executed, review approved), one reasoning pass: what could go wrong with what you just did? Fix anything found before writing state.
+
+Coordinators: double-check routing decisions and review approvals. Workers: double-check task output quality.
+
+### Step 8 -- Daily notes and handoff
+
+**Daily notes:** Append a timestamped entry to `daily/YYYY-MM-DD.md` for each meaningful event this cycle.
 
 **Handoff rewrite:** Rewrite `handoff.md`:
 - Current status (what you are doing)
@@ -101,13 +121,15 @@ If nothing changed, skip this step. No noise.
 - Open items
 - Team state (coordinators: worker status)
 
-### Step 7 -- State write
+### Step 9 -- State write
+
+**Board-down cache rule:** If the ops board was unreachable this cycle (Step 2 health probe failed), preserve the previous cycle's state instead of overwriting with empty. Stale cache beats no cache.
 
 Write `heartbeat-state.json`:
 - `last_heartbeat`: current timestamp
 - `last_cycle_id`: YYYY-MM-DD-HHMM
 - `last_heartbeat_note`: one-line summary
-- `steps_executed`: array of step numbers run (0-7)
+- `steps_executed`: array of step numbers run (0-9)
 - `quiet_hours`: boolean
 - `last_board_check_ts`: timestamp
 - `next_actions`: array of pending items
@@ -124,13 +146,15 @@ Every cycle MUST include a numbered table:
 | Step | Action | Result |
 |------|--------|--------|
 | 0 | Time check | 2:15 PM EDT, active hours |
-| 1 | State read | Last cycle complete, 58 min ago |
-| 2 | Board sweep | 1 command executed, 2 tasks in progress |
-| 3 | Peers | 1 message from Cognis, responded |
-| 4 | Worker health | Forge: online, Atlas: online |
-| 5 | Report up | Messaged Cognis: "1 task completed, board clean" |
-| 6 | Notes + handoff | Updated |
-| 7 | State write | Saved |
+| 1 | State read | Last cycle complete, 58 min ago, no integrity fails |
+| 2 | Health probe | ops_board: OK, peers: OK |
+| 3 | Board sweep | 1 command executed, 2 tasks in progress |
+| 4 | Peers | 1 message from Cognis, responded |
+| 5 | Worker health | Forge: online (beat 12m ago), Atlas: online (beat 8m ago) |
+| 6 | Report up | Messaged Cognis: "1 task completed, board clean" |
+| 7 | Self-critique | Reviewed routing of 1 task, no issues |
+| 8 | Notes + handoff | Updated |
+| 9 | State write | Saved, trigger closed |
 ```
 
 ---
