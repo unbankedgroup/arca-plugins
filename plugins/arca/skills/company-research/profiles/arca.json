@@ -1,0 +1,9 @@
+{
+  "company": "Arca",
+  "website": "https://runarca.xyz",
+  "product": "AI ops platform for small service businesses. Runs scheduling, invoicing, onboarding, follow-ups, and morning briefs through a single chat interface (WhatsApp/Telegram). No dashboards, no CRMs. Each client gets a custom 7-day white-glove build. Flat pricing, no credits.",
+  "existing_customers": [],
+  "competitors": ["Lindy AI", "GoHighLevel", "HoneyBook", "Dubsado", "Relay.app", "Zapier Agents", "HubSpot Breeze", "Bond (Donna)", "Gumloop", "Paperclip"],
+  "use_cases": ["Scheduling & calendar management", "Invoicing & payment chasing", "Client onboarding sequences", "Lead follow-up & re-engagement", "Daily morning briefs", "Recurring billing", "Tool consolidation", "Pipeline tracking", "Client intake"],
+  "researched_at": "2026-04-24"
+}

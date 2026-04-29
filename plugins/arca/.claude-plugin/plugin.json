@@ -1,16 +1,9 @@
 {
   "name": "arca",
-  "version": "1.0.0-alpha",
-  "description": "Arca — AI ops platform for SMBs. Skills, hooks, MCP servers, and agent profiles for running multi-agent operations.",
-  "author": { "name": "Unbanked", "url": "https://runarca.xyz" },
-  "repository": "https://github.com/unbankedgroup/arca-plugins",
-  "license": "MIT",
-  "keywords": ["ops", "ai-agents", "smb", "automation", "task-management"],
-  "mcpServers": "./.mcp.json",
-  "userConfig": {
-    "ARCA_WORKSPACE": { "type": "string", "title": "Workspace", "description": "Ops board workspace slug (e.g. arca, reignite)" },
-    "ARCA_AGENT_NAME": { "type": "string", "title": "Agent Name", "description": "Agent name for ops board routing (e.g. Cognis, Donna)" },
-    "ARCA_WEBHOOK_PORT": { "type": "string", "title": "Webhook Port", "description": "Ops board webhook port (e.g. 8798)" },
-    "ARCA_LICENSE_KEY": { "type": "string", "title": "License Key", "description": "License key for Arca", "sensitive": true }
-  }
+  "description": "Arca ops platform — skills and workflows for running AI agent operations",
+  "author": {
+    "name": "Unbanked",
+    "email": "mal@runarca.xyz"
+  },
+  "version": "2.0.0"
 }

@@ -12,8 +12,8 @@
     {
       "name": "arca",
       "source": "./plugins/arca",
-      "description": "Arca ops platform — skills, hooks, MCP servers, and agent profiles for running multi-agent operations",
-      "version": "1.0.0-alpha"
+      "description": "Arca ops platform -- skills and workflows for AI agent operations",
+      "version": "2.0.0"
     }
   ]
 }

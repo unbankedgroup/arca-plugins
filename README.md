@@ -1,29 +1,42 @@
 # Arca Plugins
 
-Official Claude Code plugin marketplace for [Arca](https://runarca.xyz) — AI ops platform for SMBs.
+Official plugin marketplace for Arca -- AI ops platform for SMBs.
 
-## Install
+## Plugins
 
-```bash
-claude plugin add https://github.com/unbankedgroup/arca-plugins
+### arca (v2.0.0)
+Skills and workflows for running AI agent operations.
+
+**Skills included:**
+- `kb-query` - Search knowledge base before answering factual questions
+- `kb-ingest` - Ingest source documents into the knowledge base
+- `kb-lint` - Health check the knowledge base vault
+- `company-research` - Deep company research and ICP scoring
+- `content-strategy` - Content planning with SEO topic clusters
+
+## Installation
+
+Add this marketplace to your Claude Code settings:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "arca-plugins": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/unbankedgroup/arca-plugins.git"
+      }
+    }
+  }
+}
 ```
 
-## What's included
+Then enable the plugin:
 
-- **Ops Board MCP** — task management, command center, scheduling
-- **Session hooks** — auto-boot, Telegram reconnect, prompt dispatch
-- **Skills** — arca-ops, arca-worker, usage, watch-agent
-- **Agent templates** — Cognis, Mara, and a generic _template for new agents
-
-## Configuration
-
-After install, set these environment variables (or provide them at enable time):
-
-- `ARCA_WORKSPACE` — ops board workspace (e.g. `arca`, `reignite`)
-- `ARCA_AGENT_NAME` — agent name for routing (e.g. `Cognis`, `Donna`)
-- `ARCA_WEBHOOK_PORT` — webhook port (e.g. `8798`)
-- `ARCA_LICENSE_KEY` — license key (sensitive)
-
-## License
-
-MIT
+```json
+{
+  "enabledPlugins": {
+    "arca@arca-plugins": true
+  }
+}
+```
