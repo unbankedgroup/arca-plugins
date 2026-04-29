@@ -48,7 +48,7 @@ Poll the client's inbox since `last_email_check_ts`. For each real email that ne
 2. Save draft to a pending file
 3. Queue for surfacing in Phase 4
 
-Never surface an email without a draft reply attached. The client approves or edits, not writes from scratch.
+Never send an email directly. Draft only. Every draft goes to the client for explicit approval before sending. No exceptions, no automation, no "obvious" replies. The client approves or edits, then you send. Never surface an email without a draft reply attached.
 
 ### Step 4 -- Calendar (requires: calendar)
 
@@ -226,6 +226,7 @@ Every heartbeat response MUST include a numbered table showing ALL steps and the
 - Never skip a step because "nothing changed" or "already checked recently." Run it.
 - Never surface a problem without a proposed solution. Diagnose, fix, present YES/NO.
 - Draft replies and follow-ups yourself. The client approves, not writes.
+- NEVER send emails without explicit client approval. Draft only. Always.
 - Quiet hours suppress outbound messages only. All other work continues.
 - Log everything to daily notes. If it is not logged, it did not happen.
 - Read client.yaml every run. Do not hardcode client-specific values.
